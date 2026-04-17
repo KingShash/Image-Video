@@ -49,14 +49,13 @@ async def upload_file(
         )
 
 
-        if  upload_result.response.http_status_code == 200:
-
+        if  upload_result.response_metadata.http_status_code == 200:
 
             post = Post(
                 caption=caption,
-                url="url",
-                file_type="photo",
-                file_name=file.filename
+                url=upload_result.url,
+                file_type="video" if file.content_type.startswith("video/") else "image",
+                file_name=upload_result.name
             )
 
         session.add(post)
@@ -94,3 +93,23 @@ async def get_feed(
             }
         )
     return{"posts": posts_data}
+
+
+@app.delete("/posts/{post_id}")
+async def delete_post(post_id: str, session: AsyncSession = Depends(get_async_session)):
+    try:
+        post_uuid = uuid.UUID(post_id)
+
+        result = await session.execute(select(Post).where(Post.id == post_uuid)) #convert postid to uuid bcoz it will be string by default and we need it to be uuid objects
+        post = result.scalars().first()  # returns the exact rather than giving obj. to loops
+
+        if not post:
+            raise HTTPException(status_code=404, detail="Post not found")
+
+        await session.delete(post)
+        await session.commit()
+
+        return{"success" : True, "message": "Post deleted Successfully "}
+
+    except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
